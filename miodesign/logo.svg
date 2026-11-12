@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 170" role="img" aria-labelledby="title">
+  <title id="title">MIO Design</title>
+  <path fill="#111" d="M0 0 84.5 84 169 0v170H0z"/>
+  <path fill="#111" d="M227 0h56v170h-56z"/>
+  <circle cx="424" cy="85" r="85" fill="#111"/>
+  <text x="550" y="119" textLength="270" lengthAdjust="spacingAndGlyphs" fill="#0a74e8" font-family="Arial, Helvetica, sans-serif" font-size="80" font-weight="600">Design</text>
+</svg>
