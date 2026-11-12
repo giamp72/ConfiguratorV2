@@ -1187,6 +1187,9 @@ async function viewAttributi() {
 
 // ---------- attributi: scheda ----------
 async function viewAttributo(idParam, returnTo = '') {
+  const previewToken = ++productPreviewToken;
+  activeProductPreview?.dispose();
+  activeProductPreview = null;
   const safeReturnRoute = (value) => /^#\/(?:|prodotti(?:\/(?:nuovo|[1-9]\d*))?|attributi(?:\/(?:nuovo|[1-9]\d*))?|codifica(?:\/[1-9]\d*)?|test(?:\/[1-9]\d*)?)$/.test(value) ? value : '';
   returnTo = safeReturnRoute(returnTo);
   const isNew = idParam === 'nuovo';
@@ -1205,11 +1208,11 @@ async function viewAttributo(idParam, returnTo = '') {
     attr = a;
     if (attr.id_attributo_padre) {
       [padreOpzioni, esposte] = await Promise.all([
-        q(sb.from('opzioni').select('id_opzione, nome, descrizione, attiva, ordine').eq('id_attributo', attr.id_attributo_padre).order('ordine').order('nome')),
+        q(sb.from('opzioni').select('id_opzione, nome, descrizione, attiva, ordine, id_glb, risorse_glb(percorso_risorsa)').eq('id_attributo', attr.id_attributo_padre).order('ordine').order('nome')),
         q(sb.from('attributi_opzioni').select('id_opzione, abilitata').eq('id_attributo', id)),
       ]);
     } else {
-      opzioni = await q(sb.from('opzioni').select('*, risorse_glb(id_glb, nome_file)').eq('id_attributo', id).order('ordine').order('nome'));
+      opzioni = await q(sb.from('opzioni').select('*, risorse_glb(id_glb, nome_file, percorso_risorsa)').eq('id_attributo', id).order('ordine').order('nome'));
       const optIds = opzioni.map((o) => o.id_opzione);
       if (optIds.length) {
         const [cfgUse, derUse] = await Promise.all([
@@ -1225,10 +1228,11 @@ async function viewAttributo(idParam, returnTo = '') {
   const effetto = (o) => attr.tipo_attributo === 'Materiale'
     ? `<div class="glb-field"><input data-glb-name readonly value="${esc(o?.risorse_glb?.nome_file)}" placeholder="Nessun GLB" aria-label="GLB dell'opzione">
         <label class="upload-button small btn">${icon('upload')}<span>Carica GLB</span><input type="file" data-f="glb" accept=".glb,model/gltf-binary" aria-label="Carica GLB materiale"></label>
+        <button class="small" type="button" data-preview-glb>Anteprima</button>
         <button class="small danger" type="button" data-act="clear-glb">Rimuovi GLB</button></div><span class="upload-status muted" data-upload-status></span>`
     : `<select data-f="valore_visibilita"><option value="">— non definito —</option><option value="true" ${o?.valore_visibilita === true ? 'selected' : ''}>Mostra</option><option value="false" ${o?.valore_visibilita === false ? 'selected' : ''}>Nascondi</option></select>`;
 
-  const opzioneRow = (o, next = 0) => `<tr data-opz="${o?.id_opzione ?? 'new'}" data-glb="${o?.id_glb ?? ''}">
+  const opzioneRow = (o, next = 0) => `<tr data-opz="${o?.id_opzione ?? 'new'}" data-glb="${o?.id_glb ?? ''}" data-glb-path="${esc(o?.risorse_glb?.percorso_risorsa)}">
       <td style="width:9rem"><input data-f="nome" maxlength="10" value="${esc(o?.nome)}" placeholder="Nuova" aria-label="Nome"></td>
       <td><input data-f="descrizione" value="${esc(o?.descrizione)}" aria-label="Descrizione"></td>
       <td>${effetto(o)}</td>
@@ -1243,7 +1247,7 @@ async function viewAttributo(idParam, returnTo = '') {
   const opzioniSection = isNew ? '<p class="muted">Dopo la creazione potrai definire le opzioni.</p>' : derivato ? `
     <section class="card" id="attribute-options"><h2>Opzioni del derivato</h2>
       <p class="muted">Seleziona le opzioni dell'attributo padre da includere in questo attributo.</p>
-      <div class="opt-grid">${padreOpzioni.map((o) => `<label class="check"><input type="checkbox" data-opt="${o.id_opzione}" ${abilitate.has(o.id_opzione) ? 'checked' : ''}> ${esc(optionLabel(o))}${o.attiva ? '' : ' <span class="muted">(non attiva)</span>'}</label>`).join('') || '<span class="muted">L\'attributo padre non ha opzioni.</span>'}</div>
+      <div class="opt-grid">${padreOpzioni.map((o) => `<div><label class="check"><input type="checkbox" data-opt="${o.id_opzione}" ${abilitate.has(o.id_opzione) ? 'checked' : ''}> ${esc(optionLabel(o))}${o.attiva ? '' : ' <span class="muted">(non attiva)</span>'}</label>${attr.tipo_attributo === 'Materiale' ? ` <button type="button" class="small" data-preview-glb data-glb="${o.id_glb ?? ''}" data-glb-path="${esc(o.risorse_glb?.percorso_risorsa)}" data-label="${esc(optionLabel(o))}">Anteprima</button>` : ''}</div>`).join('') || '<span class="muted">L\'attributo padre non ha opzioni.</span>'}</div>
 </section>` : `
     <section class="card" id="attribute-options"><h2>Opzioni</h2>
       <div class="search-wrap" style="margin-bottom:.75rem">${icon('search')}<input class="search" id="opt-search" placeholder="Filtra opzioni…" aria-label="Filtra opzioni"></div>
@@ -1267,7 +1271,12 @@ async function viewAttributo(idParam, returnTo = '') {
       </div>
       <div class="field"><label for="descrizione">Descrizione</label><textarea id="descrizione">${esc(attr.descrizione)}</textarea></div>
       <div class="field"><label class="check"><input type="checkbox" id="attivo" ${attr.attivo ? 'checked' : ''}> Attivo</label></div>
-    </form>${opzioniSection}${saveBar(isNew ? 'Crea attributo' : 'Salva tutto')}`, crumbs);
+    </form>${opzioniSection}${!isNew && attr.tipo_attributo === 'Materiale' ? `<section class="card">
+      <h2>Anteprima materiale</h2>
+      <p class="muted">Seleziona Anteprima accanto a un'opzione. Trascina per ruotare.</p>
+      <div id="attribute-material-preview" class="product-preview-stage attribute-material-stage"></div>
+      <p id="attribute-material-status" class="preview-status muted" role="status">Nessun materiale selezionato.</p>
+    </section>` : ''}${saveBar(isNew ? 'Crea attributo' : 'Salva tutto')}`, crumbs);
 
   // un derivato ha il tipo del padre
   $('#padre').onchange = () => {
@@ -1327,6 +1336,58 @@ async function viewAttributo(idParam, returnTo = '') {
   const reload = () => viewAttributo(String(id ?? createdId), returnTo);
   bindSaveAll(saveAttribute, () => (isNew ? go(attrRoute(createdId)) : reload()));
   $('#form-attr').onsubmit = (e) => { e.preventDefault(); $('#save-all').click(); };
+  let previewRevision = 0;
+  let previewViewer = null;
+  let selectedPreviewRow = null;
+  const clearMaterialPreview = (message) => {
+    previewRevision++;
+    selectedPreviewRow = null;
+    previewViewer?.clear();
+    const status = $('#attribute-material-status');
+    status.textContent = message;
+    status.classList.remove('error-text');
+  };
+  const previewMaterial = async (idGlb, path, label, row = null) => {
+    const revision = ++previewRevision;
+    selectedPreviewRow = row;
+    const status = $('#attribute-material-status');
+    previewViewer?.clear();
+    status.classList.remove('error-text');
+    if (!idGlb || !path) {
+      status.textContent = 'Nessun GLB materiale associato a questa opzione.';
+      return;
+    }
+    status.textContent = 'Caricamento anteprima…';
+    try {
+      const { data, error } = await sb.storage.from('modelli-glb').createSignedUrl(path, 300);
+      if (error) throw error;
+      if (previewToken !== productPreviewToken || revision !== previewRevision) return;
+      if (!previewViewer) {
+        const { createProductPreview } = await import('./product-preview.js');
+        if (previewToken !== productPreviewToken || revision !== previewRevision) return;
+        previewViewer = createProductPreview($('#attribute-material-preview'));
+        activeProductPreview = previewViewer;
+      }
+      const material = await previewViewer.loadMaterial(idGlb, data.signedUrl);
+      if (previewToken !== productPreviewToken || revision !== previewRevision) return;
+      previewViewer.showMaterial(material);
+      status.textContent = `Anteprima: ${label}`;
+    } catch (error) {
+      if (previewToken !== productPreviewToken || revision !== previewRevision) return;
+      status.textContent = `Impossibile caricare l'anteprima: ${errMsg(error)}`;
+      status.classList.add('error-text');
+    }
+  };
+  if (!isNew && attr.tipo_attributo === 'Materiale') {
+    $('#attribute-options').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-preview-glb]');
+      if (!button) return;
+      const row = button.closest('tr');
+      const source = row || button;
+      const label = row ? $('[data-f=nome]', row).value || $('[data-glb-name]', row).value : button.dataset.label;
+      previewMaterial(source.dataset.glb, source.dataset.glbPath, label, row);
+    });
+  }
   if (isNew || derivato) return;
 
   $('#opt-search').oninput = (e) => {
@@ -1359,8 +1420,12 @@ async function viewAttributo(idParam, returnTo = '') {
       const file = input.files[0];
       const resource = await uploadGlbResource(file, 'Materiale', `opzioni/${tr.dataset.opz === 'new' ? crypto.randomUUID() : tr.dataset.opz}`);
       tr.dataset.glb = resource.id_glb;
+      tr.dataset.glbPath = resource.path;
       $('[data-glb-name]', tr).value = file.name;
       status.textContent = 'GLB caricato; salva per associare.';
+      if (tr.isConnected !== false && previewToken === productPreviewToken) {
+        previewMaterial(resource.id_glb, resource.path, $('[data-f=nome]', tr).value || file.name, tr);
+      }
     } catch (error) {
       status.textContent = errMsg(error);
       toast(errMsg(error), true);
@@ -1377,15 +1442,20 @@ async function viewAttributo(idParam, returnTo = '') {
     if (savingAttribute) { toast('Attendi il completamento del salvataggio.', true); return; }
     if (tr.dataset.uploading === '1') { toast('Attendi il completamento del caricamento GLB.', true); return; }
     if (action === 'clear-glb') {
+      if (selectedPreviewRow === tr) clearMaterialPreview('Nessun materiale selezionato.');
       tr.dataset.glb = '';
+      tr.dataset.glbPath = '';
       $('[data-glb-name]', tr).value = '';
       $('[data-upload-status]', tr).textContent = 'Salva per rimuovere l’associazione.';
       return;
     }
-    if (action === 'drop') { tr.remove(); return; }
+    if (action === 'drop') { if (selectedPreviewRow === tr) clearMaterialPreview('Nessun materiale selezionato.'); tr.remove(); return; }
     if (action !== 'del') return;
     if (!confirm('Eliminare l\'opzione? Verrà tolta anche da attributi derivati e prodotti che la usano.')) return;
-    if (await act(() => q(sb.from('opzioni').delete().eq('id_opzione', tr.dataset.opz)), 'Opzione eliminata')) tr.remove();
+    if (await act(() => q(sb.from('opzioni').delete().eq('id_opzione', tr.dataset.opz)), 'Opzione eliminata')) {
+      if (selectedPreviewRow === tr) clearMaterialPreview('Nessun materiale selezionato.');
+      tr.remove();
+    }
   };
 }
 

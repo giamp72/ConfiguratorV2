@@ -26,6 +26,8 @@ Three.js è incluso in `vendor/`.
 - Gli attributi sono di tipo **Materiale** o **Visibilità**. Il GLB del materiale
   è associato direttamente all'opzione; non esiste una tabella materiali.
   Attributi derivati possono esporre un sottoinsieme delle opzioni del padre.
+  Nella scheda attributo, **Anteprima** mostra il materiale su una sfera;
+  il GLB deve contenere almeno una mesh con materiale.
 - Per ogni misura si possono caricare o riutilizzare più GLB come componenti,
   anche più istanze dello stesso GLB. Ogni istanza ha posizione X/Y/Z in metri
   e rotazione Euler XYZ in gradi; le mappature mesh-attributo sono distinte per

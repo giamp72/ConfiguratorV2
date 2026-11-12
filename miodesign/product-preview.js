@@ -99,6 +99,7 @@ export function createProductPreview(stage) {
   scene.add(new THREE.AmbientLight(0xffffff, 0.45));
 
   let model = null;
+  let materialSphere = null;
   let components = [];
   let singleProduct = false;
   let pendingLoad = null;
@@ -199,6 +200,11 @@ export function createProductPreview(stage) {
     for (const material of appliedMaterials) material.dispose();
     appliedMaterials.clear();
     components.forEach(({ gltf }) => disposeGltf(gltf));
+    if (materialSphere) {
+      materialSphere.geometry.dispose();
+      materialSphere.material.dispose();
+      materialSphere = null;
+    }
     components = [];
     model = null;
     singleProduct = false;
@@ -284,6 +290,16 @@ export function createProductPreview(stage) {
   };
 
   return {
+    showMaterial(material) {
+      if (!running) throw new Error('Anteprima non più disponibile.');
+      pendingLoad?.cancel();
+      removeModel();
+      materialSphere = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), material.clone());
+      model = materialSphere;
+      scene.add(model);
+      resize();
+      fitCamera();
+    },
     async loadProduct(url) {
       const zero = { x: 0, y: 0, z: 0 };
       return loadComponents(validateComponents([{ id: 'product', url, position: zero, rotation: zero }]), true);

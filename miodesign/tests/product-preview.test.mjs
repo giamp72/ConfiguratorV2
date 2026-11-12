@@ -93,6 +93,29 @@ const nextRequest = () => {
   return request;
 };
 
+test('material preview shows a sphere and preserves shared textures when replaced or cleared', async () => {
+  const preview = createProductPreview(stage());
+  const gltf = fixture();
+  const texture = new THREE.Texture();
+  let textureDisposals = 0;
+  texture.addEventListener('dispose', () => textureDisposals++);
+  gltf.material.map = texture;
+  const loading = preview.loadMaterial(1, 'material.glb');
+  nextRequest().resolve(gltf);
+  const material = await loading;
+  preview.showMaterial(material);
+  const scene = renderers.at(-1).scene;
+  const sphere = scene.children.find((object) => object.isMesh);
+  assert.equal(sphere.geometry.type, 'SphereGeometry');
+  assert.equal(sphere.material.map, texture);
+  preview.showMaterial(material);
+  assert.equal(textureDisposals, 0);
+  preview.clear();
+  assert.equal(textureDisposals, 0);
+  preview.dispose();
+  assert.equal(textureDisposals, 1);
+});
+
 test('assembly scopes mapping and highlight by identity, transforms instances and fits their bounds', async () => {
   const target = stage(300, 900);
   const preview = createProductPreview(target);
