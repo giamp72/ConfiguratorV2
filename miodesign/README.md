@@ -11,8 +11,10 @@ Three.js è incluso in `vendor/`.
    policy RLS e il bucket privato `modelli-glb`. Le policy consentono l'accesso
    in lettura e scrittura a tutti gli utenti autenticati, senza ruoli distinti.
    Gli script non migrano i dati della versione precedente.
-2. Crea gli utenti in *Authentication > Users* e configura in `config.js`
-   l'URL del progetto e la chiave pubblica anon. Non inserire chiavi service role.
+2. Crea gli utenti in *Authentication > Users*. `config.js` contiene l'URL del
+   progetto e la chiave pubblica Supabase (publishable); se rigeneri la chiave,
+   aggiornala lì. Non inserire chiavi secret o service role: il file è caricato
+   dal browser.
 3. Dalla radice del repository esegui `python3 -m http.server 4174` e visita
    `http://localhost:4174/`. Per caricare il client Supabase serve accesso a esm.sh.
 
