@@ -1,11 +1,11 @@
 -- MIODesign — schema database (Supabase / PostgreSQL 15+)
--- Implementa le 16 tabelle della Parte III di analisi.pdf.
+-- Schema per una nuova installazione.
 -- Eseguire per intero nello SQL Editor di Supabase.
 -- Convenzioni: nomi in snake_case; chiavi BIGINT; tutte le tabelle protette da RLS
 -- (accesso consentito solo agli utenti autenticati).
 
 -- =========================================================================
--- Archivio risorse GLB e materiali
+-- Archivio risorse GLB
 -- =========================================================================
 create table risorse_glb (
   id_glb            bigint generated always as identity primary key,
@@ -13,17 +13,8 @@ create table risorse_glb (
   percorso_risorsa  text,
   tipo_risorsa      varchar(20) not null check (tipo_risorsa in ('Oggetto', 'Materiale')),
   impronta_file     varchar(64),
-  caricato_il       timestamptz not null default now()
-);
-
--- Scostamento dal documento: id_glb è NULL ammesso, così un materiale può essere
--- censito prima che il relativo GLB sia caricato (il GLB va completato prima della pubblicazione).
-create table materiali (
-  id_materiale          bigint generated always as identity primary key,
-  nome                  varchar(150) not null,
-  descrizione           text,
-  id_glb                bigint references risorse_glb (id_glb),
-  rif_materiale_interno varchar(200)
+  caricato_il       timestamptz not null default now(),
+  unique (id_glb, tipo_risorsa)
 );
 
 -- =========================================================================
@@ -43,12 +34,16 @@ create table opzioni (
   id_attributo      bigint not null references attributi (id_attributo) on delete cascade,
   nome              varchar(150) not null,
   descrizione       text,
-  id_materiale      bigint references materiali (id_materiale) on delete set null,
+  id_glb            bigint,
+  tipo_glb          varchar(20) not null default 'Materiale' check (tipo_glb = 'Materiale'),
   valore_visibilita boolean,
   ordine            int not null default 0,
-  attiva            boolean not null default true
+  attiva            boolean not null default true,
+  foreign key (id_glb, tipo_glb) references risorse_glb (id_glb, tipo_risorsa)
+    on delete set null (id_glb)
 );
 create index opzioni_attributo_idx on opzioni (id_attributo);
+create index opzioni_glb_idx on opzioni (id_glb, tipo_glb);
 
 -- Opzioni esposte da ogni attributo: generale (proprie opzioni, popolata da trigger)
 -- oppure derivato (sottoinsieme delle opzioni del padre).
@@ -215,7 +210,7 @@ end $$;
 create trigger attributi_check before insert or update on attributi
   for each row execute function trg_attributi_check();
 
--- Coerenza opzione/tipo: Materiale → solo id_materiale; Visibilità → solo valore_visibilita.
+-- Coerenza opzione/tipo: Materiale → solo GLB materiale; Visibilità → solo valore_visibilita.
 create function trg_opzioni_check() returns trigger language plpgsql as $$
 declare t text;
 begin
@@ -223,8 +218,13 @@ begin
   if t = 'Materiale' and new.valore_visibilita is not null then
     raise exception 'Un''opzione di tipo Materiale non può avere un valore di visibilità';
   end if;
-  if t = 'Visibilità' and new.id_materiale is not null then
-    raise exception 'Un''opzione di tipo Visibilità non può avere un materiale';
+  if t = 'Visibilità' and new.id_glb is not null then
+    raise exception 'Un''opzione di tipo Visibilità non può avere un GLB materiale';
+  end if;
+  if new.id_glb is not null and exists (
+    select 1 from risorse_glb where id_glb = new.id_glb and tipo_risorsa <> 'Materiale'
+  ) then
+    raise exception 'Il GLB dell''opzione deve essere di tipo Materiale';
   end if;
   return new;
 end $$;
@@ -302,7 +302,7 @@ do $$
 declare t text;
 begin
   foreach t in array array[
-    'risorse_glb','materiali','attributi','opzioni','attributi_opzioni','prodotti','misure',
+    'risorse_glb','attributi','opzioni','attributi_opzioni','prodotti','misure',
     'prodotti_attributi','configurazioni','mesh_glb','associazioni_mesh','listini','codifica',
     'codifica_dettagli','prezzi','versioni_prodotto']
   loop

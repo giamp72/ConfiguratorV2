@@ -20,7 +20,7 @@ export function createProductConfigRepository(sb, q, qAll) {
     const attrIds = assegnati.map((a) => a.id_attributo);
     const optionsById = {};
     if (attrIds.length) {
-      const ao = await q(sb.from('attributi_opzioni').select('id_attributo, abilitata, opzioni(id_opzione, nome, descrizione, attiva, ordine, id_materiale, valore_visibilita, materiali(id_materiale, nome, id_glb, risorse_glb(percorso_risorsa)))').in('id_attributo', attrIds));
+      const ao = await q(sb.from('attributi_opzioni').select('id_attributo, abilitata, opzioni(id_opzione, nome, descrizione, attiva, ordine, id_glb, valore_visibilita, risorse_glb(percorso_risorsa))').in('id_attributo', attrIds));
       ao.filter((r) => r.abilitata && r.opzioni).forEach((r) => (optionsById[r.id_attributo] ||= []).push(r.opzioni));
     }
     const attributes = assegnati.map((pa) => {

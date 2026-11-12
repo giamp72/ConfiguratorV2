@@ -1,29 +1,52 @@
-# MIO Design — manutenzione dati
+# MIO Design — ConfiguratorV2
 
-Interfaccia web (HTML/JS statico, nessuna build) per la manutenzione dei dati di prodotto utilizzati dal progetto MIOLite (Parte II di `../analisi.pdf`), con database su Supabase. L'applicazione si chiama MIO Design.
+Applicazione web statica per la configurazione dei prodotti, con Supabase Auth,
+database e archivio GLB privato. Il client Supabase è caricato da esm.sh;
+Three.js è incluso in `vendor/`.
 
-## Funzioni
-- **Login** con Supabase Auth (email/password).
-- **Menu iniziale** (in ordine di lavoro, con conteggi per sezione): Materiali, Attributi, Prodotti, Codifica e Pricing, Final Check.
-- **Prodotti**: elenco, creazione (ID progressivo automatico), modifica, eliminazione; nella scheda i dati sono a sinistra e l'anteprima GLB con riepilogo live di misure e attributi a destra. Il modello si carica subito dopo la selezione del file; per ogni prodotto si possono definire misure (terne X/Y/Z), GLB per misura e attributi assegnati con descrizioni, opzioni ammesse e relative descrizioni, default, ordine, obbligatorietà e flag “Codifica”. Dalla scheda si può aprire direttamente la definizione di un nuovo attributo.
-- **Condizioni tra attributi**: nella scheda prodotto, dopo aver aggiunto attributi e opzioni, scegliere «Aggiungi condizione», indicare attributo e valore di partenza, attributo di destinazione e valori ammessi, quindi salvare. Per valori senza una condizione sono ammesse tutte le opzioni del prodotto; condizioni attive sulla stessa destinazione si intersecano. Le condizioni possono formare catene ma non cicli. La preview e Final Check aggiornano le scelte compatibili; se necessario possono cambiare automaticamente altri valori. Le opzioni di attributi non codificati influenzano comunque le combinazioni valide in Codifica e Pricing, senza comparire nella chiave commerciale.
-- **GLB e mesh**: caricamento automatico del GLB di oggetto quando si seleziona un file per una terna di misure; ogni GLB ha una mappatura mesh-attributo indipendente, senza richiedere mesh uguali tra misure.
-- **Salvataggio unico**: in prodotti, attributi/opzioni e materiali un solo pulsante “Salva tutto” (barra fissa in basso) salva tutte le modifiche della pagina. Aggiungere misure, attributi, opzioni o materiali non richiede salvataggi intermedi: le righe nuove restano in pagina fino al salvataggio finale. Le eliminazioni restano immediate. I GLB caricati vengono associati al salvataggio.
-- **Interfaccia**: stile moderno chiaro (scuro automatico secondo il sistema) con icone a tratto in stile Apple; i file GLB si caricano automaticamente dopo la selezione dal pulsante “Carica GLB”.
-- **Prova configurazione**: anteprima 3D del GLB di una misura; modificando gli attributi assegnati alle mesh vengono applicati i materiali GLB selezionati o le regole di visibilità.
-- **Materiali**: definizione di nome e descrizione, GLB (campo in sola lettura alimentato dal pulsante Carica), filtro, stato di utilizzo, eliminazione singola o totale (con GLB associato); le opzioni degli attributi possono usare questi materiali. Dalla definizione di un attributo si può aprire la maschera materiali e tornare allo stesso attributo al termine.
-- **Codifica e Pricing** (`#/codifica`): scelto un prodotto, mostra le combinazioni misura × opzioni ammesse dei soli attributi con flag “Codifica” attivo, con descrizioni di attributi e opzioni; permette di assegnare codice commerciale, descrizione e prezzo (per listino; se non esiste viene creato “Listino base”). Salvataggio con “Salva tutto”; righe svuotate vengono eliminate. Limite: 5000 combinazioni per prodotto.
-- **Final Check** (`#/test`): il prodotto si sceglie da una lista (max 10 righe visibili, scrollbar, filtro in alto, prodotti da validare in cima, flag Validazione visibile); dopo il test il pulsante “Segna come testato e pronto all'uso” imposta il flag `prodotti.validato`. Poi misura e listino, configurazione di tutti gli attributi (con descrizioni di attributi e opzioni) e visualizzazione di codice, descrizione e prezzo basati solo sugli attributi con flag “Codifica” attivo, insieme all'anteprima 3D (circa 70% della larghezza).
-- **Attributi**: elenco attributi con stato di utilizzo; nella scheda le opzioni hanno filtro e colonna “Usata” SI/NO; creazione/modifica/eliminazione di attributi generali e derivati, opzioni (materiale o visibilità, ordine, attiva), selezione del sottoinsieme di opzioni per i derivati.
+## Installazione
 
-## Setup
-1. Crea un progetto su Supabase ed esegui `supabase/schema.sql` nello SQL Editor (crea le tabelle, i trigger di integrità, le policy RLS e il bucket privato `modelli-glb` con le policy Storage). Se lo schema è già installato, applica i blocchi per `Archivio privato dei GLB`, `Flag "Testato e pronto all'uso"` e il flag `prodotti_attributi.codifica` in fondo al file. Il flag `codifica` è aggiunto come `true` per mantenere invariate le combinazioni esistenti.
-   Per un database già installato esegui anche `supabase/conditions.sql` prima di usare questa versione.
-2. In *Authentication > Users* crea gli utenti che potranno accedere.
-3. Inserisci Project URL e anon key in `config.js`.
-4. Servi la cartella con un server statico, ad es. `python3 -m http.server 4174`, e apri `http://localhost:4174/`.
+1. Crea un **nuovo** progetto Supabase ed esegui nello SQL Editor, nell'ordine,
+   `supabase/schema.sql` e `supabase/assembly.sql`. Gli script creano anche le
+   policy RLS e il bucket privato `modelli-glb`. Le policy consentono l'accesso
+   in lettura e scrittura a tutti gli utenti autenticati, senza ruoli distinti.
+   Gli script non migrano i dati della versione precedente.
+2. Crea gli utenti in *Authentication > Users* e configura in `config.js`
+   l'URL del progetto e la chiave pubblica anon. Non inserire chiavi service role.
+3. Dalla radice del repository esegui `python3 -m http.server 4174` e visita
+   `http://localhost:4174/`. Per caricare il client Supabase serve accesso a esm.sh.
 
-## Note
-- `materiali.id_glb` è facoltativo per poter creare materiali prima del caricamento dei GLB.
-- Le condizioni sono salvate per prodotto e fanno riferimento alle opzioni ammesse; rimuovendo un attributo o un'opzione vengono rimossi anche i relativi riferimenti. Una modifica alle condizioni non elimina le codifiche e i prezzi preesistenti: le combinazioni non più ammesse non sono mostrate, ma tornano visibili se ridiventano valide.
-- Codifica, prezzi e listini usano le tabelle già presenti nello schema (nessuna modifica SQL richiesta); le versioni di pubblicazione non hanno ancora una maschera.
+## Flusso
+
+- Parti da **Prodotti**: crea il prodotto, definisci le misure e associa attributi
+  esistenti oppure creane di nuovi dalla scheda. Scegli opzioni ammesse, default,
+  ordine, obbligatorietà e flag di codifica.
+- Gli attributi sono di tipo **Materiale** o **Visibilità**. Il GLB del materiale
+  è associato direttamente all'opzione; non esiste una tabella materiali.
+  Attributi derivati possono esporre un sottoinsieme delle opzioni del padre.
+- Per ogni misura si possono caricare o riutilizzare più GLB come componenti,
+  anche più istanze dello stesso GLB. Ogni istanza ha posizione X/Y/Z in metri
+  e rotazione Euler XYZ in gradi; le mappature mesh-attributo sono distinte per
+  componente. L'assemblaggio viene visualizzato sia nella scheda prodotto sia
+  nel Final Check.
+- Le condizioni sono specifiche del prodotto: più condizioni attive sulla stessa
+  destinazione si intersecano; sono ammesse catene ma non cicli. Anche gli
+  attributi non codificati condizionano le combinazioni commerciali valide.
+- **Codifica e Pricing** consente di assegnare codice, descrizione e prezzi per
+  listino alle combinazioni valide di misura e attributi codificati, fino a
+  5000 combinazioni per prodotto. **Final Check** mostra risultato commerciale
+  e anteprima e permette di segnare il prodotto come testato.
+
+Il salvataggio della scheda prodotto comprende più operazioni sul database, non
+un'unica transazione: in caso di errore, ricarica e verifica i dati prima di
+riprovare. Le condizioni non cancellano codici e prezzi precedenti: le combinazioni non
+più ammesse vengono nascoste e riappaiono se tornano valide. I GLB non più
+associati possono rimanere nell'archivio e richiedere pulizia amministrativa.
+
+## Test
+
+Da radice: `node --test miodesign/tests/*.test.mjs`. È richiesto Node.js.
+I test SQL in `tests/assembly-schema.sql` e `tests/material-options-schema.sql`
+richiedono un database di prova già inizializzato con entrambi gli script di
+installazione; usare `psql -v ON_ERROR_STOP=1 -f <file>`. Eseguirli solo su un
+database sacrificabile: le transazioni vengono annullate ma le sequenze avanzano.
